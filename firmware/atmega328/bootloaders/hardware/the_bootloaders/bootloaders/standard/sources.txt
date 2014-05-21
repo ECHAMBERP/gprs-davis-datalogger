@@ -1,0 +1,2 @@
+The "standard" bootloader for Arduino Pro or Pro Mini boards (3.3V, 8 MHz) w/ ATmega328.
+Same as the one provided with the IDE.

@@ -1,7 +1,7 @@
 /*
  * File : Ultimate_GPS.cpp
  *
- * Version : 0.8.1
+ * Version : 1.2
  *
  * Purpose : Ultimate GPS V3 (http://www.adafruit.com) interface library for Arduino
  *
@@ -11,11 +11,11 @@
  *
  * License: GNU GPL v2 (see License.txt)
  *
- * Creation date : 2014/02/20
+ * Creation date : 2014/05/21
  *
  * History :
  *
- * - 0.8.1 : bug fixes in the acquireNewPosition() and getFieldContentFromNMEASentence() methods
+ * - 1.2 : bug fixes in the acquireNewPosition() and getFieldContentFromNMEASentence() methods
  * 
  */
 

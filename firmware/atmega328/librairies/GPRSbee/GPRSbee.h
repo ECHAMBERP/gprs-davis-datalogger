@@ -1,7 +1,7 @@
 /*
  * File : GPRSbee.h
  *
- * Version : 0.8.1
+ * Version : 1.2
  *
  * Purpose : GPRSBEE modem (http://www.gprsbee.com) interface library for Arduino
  *
@@ -11,11 +11,12 @@
  *
  * License: GNU GPL v2 (see License.txt)
  *
- * Creation date : 2014/02/20
+ * Creation date : 2014/05/21
  *
  * History :
  * 
  * - 0.8.1 : bug fix in the requestAT() method
+ * - 1.2 : addition of a softPowerOff() method
  * 
  */
  
@@ -83,13 +84,15 @@ class GPRSbee {
     
     void init(long baudRate);
     
+    boolean isOn();
+    
     void powerOn();
    
     void powerOff();
     
     void powerOff_On();
     
-    boolean isOn();
+    void softPowerOff();
     
     void requestAT(char *command, byte respMaxNumOflines, long timeOutInMS);
     

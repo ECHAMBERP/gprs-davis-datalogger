@@ -3,7 +3,7 @@ Davis Vantage Integrated Sensor Suite / GPRS datalogger
 
 This project aims to develop an autonomous "GPRS datalogger" linked to a Cabled Integrated Sensor Suite (ISS) from Davis, allowing :
 
-- the monitoring and reading of the data provided by the ISS sensors (T / RH sensor, rain collector and anemometer)
+- the monitoring and reading of the data provided by the ISS sensors (T / RH sensor, rain collector, anemometer and sun radiation sensor)
 - the uploading, at regular time intervals, of the collected data to a web server 
 
 The Sensor Interface Module (SIM) board shipped with the Vantage Pro 2 and it's associated console(s) are thus no longer required for the transmission of the collected data, as you can use the project's board to send this data to the Internet, in a configurable way and to the web server of your choice.
@@ -15,6 +15,7 @@ Please note that the project's board is currently designed to be used with the l
 - temperature & humidity sensor based on the SHT1x sensor from Sensirion
 - rain collector II (re)configured for metric measurement
 - 6410 anemometer : new version with hall effect sensor
+- 6450 sun radiation sensor
 
 Take a look at the bill of materials for more details on the required modules, ICs and components, for the board's construction.
 

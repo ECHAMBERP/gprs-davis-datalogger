@@ -1,0 +1,56 @@
+# Optiboot Arduino support
+# http://optiboot.googlecode.com
+# Peter Knight, 2010
+# Bill Westfield, 2013 - now includes build.variant for 1.0.2 and later
+
+##############################################################
+
+// The "standard" bootloader for Arduino Pro or Pro Mini boards (3.3V, 8 MHz) w/ ATmega328
+// Same as the one provided with the IDE
+
+bldr_standard_pro328_8MHz_57600.name=Arduino Pro or Pro Mini (3.3V, 8 MHz) w/ ATmega328 -> standard
+
+bldr_standard_pro328_8MHz_57600.upload.protocol=arduino
+bldr_standard_pro328_8MHz_57600.upload.maximum_size=30720
+bldr_standard_pro328_8MHz_57600.upload.speed=57600
+
+bldr_standard_pro328_8MHz_57600.bootloader.low_fuses=0xFF
+bldr_standard_pro328_8MHz_57600.bootloader.high_fuses=0xDA
+bldr_standard_pro328_8MHz_57600.bootloader.extended_fuses=0x05
+bldr_standard_pro328_8MHz_57600.bootloader.path=standard
+bldr_standard_pro328_8MHz_57600.bootloader.file=ATmegaBOOT_168_atmega328_pro_8MHz.hex
+bldr_standard_pro328_8MHz_57600.bootloader.unlock_bits=0x3F
+bldr_standard_pro328_8MHz_57600.bootloader.lock_bits=0x0F
+
+bldr_standard_pro328_8MHz_57600.build.mcu=atmega328p
+bldr_standard_pro328_8MHz_57600.build.f_cpu=8000000L
+bldr_standard_pro328_8MHz_57600.build.core=arduino:arduino
+bldr_standard_pro328_8MHz_57600.build.variant=arduino:standard
+
+##############################################################
+
+// Compiled from sources provided by the SODAQ team :
+// https://github.com/SodaqMoja/optiboot (rev. 9dacce9ac5)
+// Excellent work guys, thank you !!!
+
+bldr_optiboot_pro328_8MHz_57600.name=Arduino Pro or Pro Mini (3.3V, 8 MHz) w/ ATmega328 -> optiboot
+
+bldr_optiboot_pro328_8MHz_57600.upload.protocol=arduino
+bldr_optiboot_pro328_8MHz_57600.upload.maximum_size=32256
+bldr_optiboot_pro328_8MHz_57600.upload.speed=57600
+bldr_optiboot_pro328_8MHz_57600.upload.disable_flushing=true
+
+bldr_optiboot_pro328_8MHz_57600.bootloader.low_fuses=0xff
+bldr_optiboot_pro328_8MHz_57600.bootloader.high_fuses=0xde
+bldr_optiboot_pro328_8MHz_57600.bootloader.extended_fuses=0x05
+bldr_optiboot_pro328_8MHz_57600.bootloader.path=optiboot
+bldr_optiboot_pro328_8MHz_57600.bootloader.file=optiboot_atmega328_pro_8MHz_baud57600.hex
+bldr_optiboot_pro328_8MHz_57600.bootloader.unlock_bits=0x3F
+bldr_optiboot_pro328_8MHz_57600.bootloader.lock_bits=0x0F
+
+bldr_optiboot_pro328_8MHz_57600.build.mcu=atmega328p
+bldr_optiboot_pro328_8MHz_57600.build.f_cpu=8000000L
+bldr_optiboot_pro328_8MHz_57600.build.core=arduino:arduino
+bldr_optiboot_pro328_8MHz_57600.build.variant=arduino:standard
+
+##############################################################

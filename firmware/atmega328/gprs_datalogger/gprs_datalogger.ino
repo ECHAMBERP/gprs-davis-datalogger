@@ -2,9 +2,9 @@
  *
  * Description :
  *
- * GPRS Weather station configured to collect temperature, relative humidity, pressure, rain and wind data avery 5 mn, store 
- * the corresponding values and other monitoring informations in the EEPROM and post them (as a file) to a web server every 
- * 5 or 15 minutes, depending on the battery's (dis)charge state.
+ * GPRS Weather station configured to collect temperature, relative humidity, pressure, rain, wind and sun radiation data 
+ * from Davis sensors every 5 mn, store he corresponding values and other monitoring informations in the EEPROM and 
+ * post them (as a file) to a web server every 5 or 15 minutes, depending on the battery's (dis)charge state.
  *
  * The Atmega is put in "sleep" mode between these tasks, and the GPS and GPRS modules are also switched off during this interlude 
  * in order to reduce the power consumption of the station. 
@@ -12,18 +12,21 @@
  * The global position of the station is updated every 6 hours : the acquisition and upload tasks can be easily rescheduled 
  * in the scheduleNextTaskAndSleep() function.
  *
- * Author : Previmeteo (www.previmeteo.com)
+ * Fore more informations (bill of materials, schematics, howtos...), take a look at : 
  *
- * Project web site : http://oses.previmeteo.com/
+ * https://github.com/previmeteo/gprs-davis-datalogger/ 
+ *
+ * Author : Previmeteo (www.previmeteo.com)
  *
  * License: GNU GPL v2 (see License.txt)
  *
- * Version : 0.8.0
+ * Version : 1.2.0o
  *
- * Creation date : 2014/02/14
+ * Creation date : 2014/05/21
  * 
  */
- 
+  
+
 
 #include "EEPROM.h"
 
@@ -71,7 +74,7 @@
 
 // Firmware version
 
-#define FIRMWARE_VERSION "0.8.0"   
+#define FIRMWARE_VERSION "1.2.0o"   
 
 
 
@@ -86,7 +89,7 @@
 
 // Server connection parameters
 
-#define SERVER_NAME "my_server.com"                      
+#define SERVER_NAME "your_server.com"                      
 #define SERVER_PORT "80"                                      
 
 #define SERVER_GET_TIME_URL "/time.php"                       
@@ -132,13 +135,16 @@
 #define GPS_POWER_PIN 4
 
 #define MODEM_POWER_PIN 5
-#define MODEM_TX_PIN 6
-#define MODEM_RX_PIN 7
+#define MODEM_TX_PIN 6                          // the pseudo-TX pin of the Arduino linked to the RX pin of the GPRSBee modem (labelled as DIN)
+#define MODEM_RX_PIN 7                          // the pseudo-RX pin of the Arduino linked to the TX pin of the GPRSBee modem (labelled as DOUT)
 #define MODEM_STATUS_PIN 8
 
-#define DAVIS_RH_T_SENSOR_CLOCK_PIN 9     
-#define DAVIS_RH_T_SENSOR_DATA_PIN 10           
+#define T_RH_SENSOR_CLOCK_PIN 9     
+#define T_RH_SENSOR_DATA_PIN 10           
      
+#define SUN_SENSOR_POWER_PIN A0
+#define SUN_SENSOR_ADC_PIN A1
+
 #define DEVICE_BATTERY_VOLTAGE_PIN A3
 
 
@@ -157,11 +163,15 @@
 
 
 
-// Raind and wind sensors configuration
+// T/RH, rain, wind and sun radiation sensors configuration
 
-#define RAIN_GAUGE_SENSOR_CONNECTED_AND_ACTIVATED true
+#define T_RH_SENSOR_CONNECTED_AND_ACTIVATED true
 
-#define ANEMOMETER_SENSOR_CONNECTED_AND_ACTIVATED true
+#define RAIN_SENSOR_CONNECTED_AND_ACTIVATED true
+
+#define WIND_SENSOR_CONNECTED_AND_ACTIVATED true
+
+#define SUN_SENSOR_CONNECTED_AND_ACTIVATED true
 
 
 
@@ -185,13 +195,27 @@
 
 
 
-// T, RH, P and V "undefined values" definition
+// "Undefined values" definition
 
 #define EXTERNAL_TEMPERATURE_UNDEFINED_VALUE -100
 #define EXTERNAL_RELATIVE_HUMIDITY_UNDEFINED_VALUE -10
 #define PRESSURE_UNDEFINED_VALUE 0
 
+#define WIND_RAIN_METER_REPORT_ID_UNDEFINED_VALUE 255
+#define WIND_RAIN_METER_ELAPSED_TIME_SINCE_LAST_REPORT_UNDEFINED_VALUE -1
+
+#define ACCUMULATED_RAINFALL_UNDEFINED_VALUE -1
+
+#define MEAN_WIND_SPEED_UNDEFINED_VALUE -1
+
+#define MEAN_WIND_DIRECTION_UNDEFINED_VALUE -1
+
+#define MAX_WIND_SPEED_UNDEFINED_VALUE -1
+
+#define SOLAR_IRRADIANCE_UNDEFINED_VALUE -1
+
 #define BATTERY_VOLTAGE_UNDEFINED_VALUE -1
+
 #define DEVICE_TEMPERATURE_UNDEFINED_VALUE -100
 
 
@@ -266,10 +290,10 @@ MStore_24LC1025 mStore(EEPROM_STORE_ADDRESS);
 Rtc_Pcf8563 rtc;
 
 
-SHT1x temperatureHumiditySensor(DAVIS_RH_T_SENSOR_DATA_PIN, DAVIS_RH_T_SENSOR_CLOCK_PIN);
+SHT1x temperatureHumiditySensor(T_RH_SENSOR_DATA_PIN, T_RH_SENSOR_CLOCK_PIN);
 
 
-Adafruit_BMP085 pressureSensor;
+Adafruit_BMP085 pressureTemperatureSensor;
 
 
 WindRainMeter windRainMeter;
@@ -302,8 +326,12 @@ unsigned long previousReportTimeStamp = 0;
 
 void setup()  {
   
+  if(SUN_SENSOR_CONNECTED_AND_ACTIVATED) {
+    pinMode(SUN_SENSOR_POWER_PIN, OUTPUT);
+    digitalWrite(SUN_SENSOR_POWER_PIN, LOW);
+  }  
   
-  // strings retrieval from flash
+  // strings retrieval from EEPROM and flash
   
   retrieveStationIdFromInternalEEPROM(stationID);
   
@@ -330,7 +358,7 @@ void setup()  {
 
   Wire.begin();
   
-  pressureSensor.begin(); 
+  pressureTemperatureSensor.begin(); 
 
   mStore.init();
   
@@ -341,7 +369,6 @@ void setup()  {
   if(modem.isOn()) modem.powerOff();
   
   delay(1000);
-
 
 
   // date and time acquisition from server
@@ -356,7 +383,6 @@ void setup()  {
   }
   
   
-  
   boolean taskSuccess;
 
   taskSuccess = readSensorsAndStoreReport();
@@ -364,13 +390,18 @@ void setup()  {
   taskSuccess = modemPowerOn_httpPostStoredReports_modemPowerOff(1024);
     
   
-  
   // date, time and first position acquisition from GPS
+  
+  delay(1000);
   
   taskSuccess = gpsPowerOn_acquireCurrentPosition_updateRTC_gpsPowerOff(GPS_FIRST_ACQUISITION_HDOP_LIMIT, GPS_FIRST_ACQUISITION_TIMEOUT_IN_SECONDS);
   
+  delay(1000);
+  
   taskSuccess = readSensorsAndStoreReport();
-    
+  
+  delay(1000);
+  
   taskSuccess = modemPowerOn_httpPostStoredReports_modemPowerOff(1024);
  
 }
@@ -697,12 +728,12 @@ void execute_TASK_READ_SENSORS_AND_STORE_REPORT() {
 
 void execute_TASK_UPLOAD_STORED_REPORTS() {
   
-  float deviceBatteryVoltage = readDeviceBatteryVoltage();
+  float deviceBatteryVoltageInV = readDeviceBatteryVoltageInV();
   
-  int numOfReportsStored = mStore.getMessagesCount();
+  int numOfStoredReports = mStore.getMessagesCount();
   
   if((!POWER_SAVING_OPTION_ACTIVATED) or 
-    (POWER_SAVING_OPTION_ACTIVATED and (deviceBatteryVoltage >= POWER_SAVING_REPORTS_UPLOAD_BATTERY_VOLTAGE_TRIGGER_VALUE) or (numOfReportsStored >= POWER_SAVING_REPORTS_UPLOAD_NUM_STORED_MESSAGES_TRIGGER_VALUE))) { 
+    (POWER_SAVING_OPTION_ACTIVATED and (deviceBatteryVoltageInV >= POWER_SAVING_REPORTS_UPLOAD_BATTERY_VOLTAGE_TRIGGER_VALUE) or (numOfStoredReports >= POWER_SAVING_REPORTS_UPLOAD_NUM_STORED_MESSAGES_TRIGGER_VALUE))) { 
   
     boolean success = modemPowerOn_httpPostStoredReports_modemPowerOff(1024);
   
@@ -733,7 +764,6 @@ boolean modemPowerOn_connectToNet() {
   if(modem.isOn()) modem.powerOff_On();
   else modem.powerOn();
  
-  
   boolean registered = false;
   boolean GPRSAttached = false;
   boolean connectedToNet = false;
@@ -895,7 +925,7 @@ boolean modemPowerOn_httpGetTimeInfoFromServer_updateRTC_modemPowerOff() {
   }
   
   modem.powerOff();
-  
+
   return rtcUpdated;
   
 }
@@ -910,7 +940,7 @@ boolean httpGetTimeInfoFromServer_updateRTC() {
   
   if(connectedToNet) {
     
-    char timeInfoFromServerBuffer[30];
+    char timeInfoFromServerBuffer[31];
   
     httpGetTimeInfoFromServer(timeInfoFromServerBuffer, sizeof(timeInfoFromServerBuffer));
           
@@ -993,6 +1023,7 @@ boolean setRTCFromTimeInfo(char *timeInfoFromServerBuffer, byte timeInfoFromServ
 }
 
 
+
 void getSubstr(char *stringBuffer, byte stringBufferLength, char *subStringBuffer, byte subStringBufferLength, byte indexStart, byte length) {
   
   subStringBuffer[0] = '\0';
@@ -1027,6 +1058,19 @@ boolean gpsPowerOn_acquireCurrentPosition_updateRTC_gpsPowerOff(float accuracyLi
   
   if(positionAcquired and rtcDateTimeSet) {
     
+    softSerialDebug.print(F("Pos. / time acquired : "));
+    softSerialDebug.print(gps.position.fix_Y_utc);
+    softSerialDebug.print(F("-"));
+    softSerialDebug.print(gps.position.fix_M_utc);
+    softSerialDebug.print(F("-"));
+    softSerialDebug.print(gps.position.fix_D_utc);
+    softSerialDebug.print(F(" "));
+    softSerialDebug.print(gps.position.fix_h_utc);
+    softSerialDebug.print(F(":"));
+    softSerialDebug.print(gps.position.fix_m_utc);
+    softSerialDebug.print(F(":"));
+    softSerialDebug.println(gps.position.fix_s_utc);
+ 
     long differenceInSecondsBetweenLastGPSFixAndNow = getDifferenceInSecondsBetweenDateTimeAndNow(gps.position.fix_Y_utc, gps.position.fix_M_utc, gps.position.fix_D_utc,
                                                                                                   gps.position.fix_h_utc, gps.position.fix_m_utc, gps.position.fix_s_utc);
                                                                                                   
@@ -1063,10 +1107,6 @@ boolean setRTCDateTimeFromLastGPSFixData() {
 
 
 
-
-
-
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 // Sensors reading and report storing functions
@@ -1088,90 +1128,149 @@ boolean readSensorsAndStoreReport() {
   
   // temperature and humidity reading
 
-  float externalTemperature = EXTERNAL_TEMPERATURE_UNDEFINED_VALUE;
-  float externalRelativeHumidity = EXTERNAL_RELATIVE_HUMIDITY_UNDEFINED_VALUE;   
+  float externalTemperatureInCD = EXTERNAL_TEMPERATURE_UNDEFINED_VALUE;                  // Celsius degrees
+  float externalRelativeHumidityInPC = EXTERNAL_RELATIVE_HUMIDITY_UNDEFINED_VALUE;       // Percent
 
-  //  float measuredExternalTemperature = temperatureHumiditySensor.readTemperatureC();
-  //  float measuredExternalRelativeHumidity = temperatureHumiditySensor.readHumidity();
-  //  
-  //  if(measuredExternalTemperature > -40) externalTemperature = measuredExternalTemperature;
-  //  if(measuredExternalRelativeHumidity > 0) externalRelativeHumidity = measuredExternalRelativeHumidity;
-  
-  float measuredExternalTemperature;
-  float measuredExternalRelativeHumidity;
-  
-  float accuMeasuredExternalTemperature = 0;
-  float accuMeasuredExternalRelativeHumidity = 0;
- 
-  byte numReadAttemptsOK = 0;
-   
-  delay(2000);                                          
-  
-  for(byte i=0 ; i < 3 ; i++) {      
-  
-    measuredExternalTemperature = temperatureHumiditySensor.readTemperatureC();
-    measuredExternalRelativeHumidity = temperatureHumiditySensor.readHumidity();
+  if(T_RH_SENSOR_CONNECTED_AND_ACTIVATED) {
+
+    //  float measuredExternalTemperatureInCD = temperatureHumiditySensor.readTemperatureC();
+    //  float measuredExternalRelativeHumidityInPC = temperatureHumiditySensor.readHumidity();
+    //  
+    //  if(measuredExternalTemperatureInCD > -40) externalTemperatureInCD = measuredExternalTemperatureInCD;
+    //  if(measuredExternalRelativeHumidityInPC > 0) externalRelativeHumidityInPC = measuredExternalRelativeHumidityInPC;
     
-    if((measuredExternalTemperature > -40) and (measuredExternalRelativeHumidity > 0)) {
+    float measuredExternalTemperatureInCD;
+    float measuredExternalRelativeHumidityInPC;
+    
+    float accuMeasuredExternalTemperature = 0;
+    float accuMeasuredExternalRelativeHumidityInPC = 0;
+   
+    byte numReadAttemptsOK = 0;
+     
+    delay(2000);                                          
+    
+    for(byte i=0 ; i < 3 ; i++) {      
+    
+      measuredExternalTemperatureInCD = temperatureHumiditySensor.readTemperatureC();
+      measuredExternalRelativeHumidityInPC = temperatureHumiditySensor.readHumidity();
       
-      numReadAttemptsOK++;
-    
-      accuMeasuredExternalTemperature += measuredExternalTemperature;
-      accuMeasuredExternalRelativeHumidity += measuredExternalRelativeHumidity;
-    } 
-    
-    delay(2000);
-   
-  }
-
-  if(numReadAttemptsOK > 0) {
-    
-    externalTemperature = accuMeasuredExternalTemperature / numReadAttemptsOK;
-    externalRelativeHumidity = accuMeasuredExternalRelativeHumidity / numReadAttemptsOK;
-    
-  }
+      if((measuredExternalTemperatureInCD > -40) and (measuredExternalRelativeHumidityInPC > 0)) {
+        
+        numReadAttemptsOK++;
+      
+       accuMeasuredExternalTemperature += measuredExternalTemperatureInCD;
+        accuMeasuredExternalRelativeHumidityInPC += measuredExternalRelativeHumidityInPC;
+      } 
+      
+      delay(2000);
+     
+    }
   
+    if(numReadAttemptsOK > 0) {
+      
+      externalTemperatureInCD = accuMeasuredExternalTemperature / numReadAttemptsOK;
+      externalRelativeHumidityInPC = accuMeasuredExternalRelativeHumidityInPC / numReadAttemptsOK;
+      
+    }
+  
+  }
   
   
   // pressure reading
   
-  float pressure = PRESSURE_UNDEFINED_VALUE;
+  float pressureInHPa = PRESSURE_UNDEFINED_VALUE;
   
-  float measuredPressure = pressureSensor.readPressure() / 100.0;
+  float measuredPressureInHPa = pressureTemperatureSensor.readPressure() / 100.0;
    
-  if((measuredPressure > 900.0) and (measuredPressure < 1100.0)) {
+  if((measuredPressureInHPa > 900.0) and (measuredPressureInHPa < 1100.0)) {
      
-   pressure = measuredPressure;
+   pressureInHPa = measuredPressureInHPa;
      
   }
 
 
   // wind / rain meter reading
   
-  windRainMeter.getReport();
+  byte windRainMeterReportID = WIND_RAIN_METER_REPORT_ID_UNDEFINED_VALUE;
   
-  byte windRainMeterReportID = windRainMeter.reportId;
+  int windRainMeterElapsedTimeSinceLastReportInSeconds = WIND_RAIN_METER_ELAPSED_TIME_SINCE_LAST_REPORT_UNDEFINED_VALUE;
   
-  int windRainMeterElapsedTimeSinceLastReportInSeconds = windRainMeter.elapsedTimeSinceLastReportInSeconds;
+  float accumulatedRainfallInMm = ACCUMULATED_RAINFALL_UNDEFINED_VALUE;
+  
+  float meanWindSpeedInMS = MEAN_WIND_SPEED_UNDEFINED_VALUE;
+  
+  float meanWindDirectionInDD = MEAN_WIND_DIRECTION_UNDEFINED_VALUE;
+  
+  float maxWindSpeedInMS = MAX_WIND_SPEED_UNDEFINED_VALUE;
+  
+  if(RAIN_SENSOR_CONNECTED_AND_ACTIVATED or WIND_SENSOR_CONNECTED_AND_ACTIVATED) {
+  
+    windRainMeter.getReport();
+    
+    windRainMeterReportID = windRainMeter.reportId;
+    
+    if(windRainMeterReportID != WIND_RAIN_METER_REPORT_ID_UNDEFINED_VALUE) {
+      
+      windRainMeterElapsedTimeSinceLastReportInSeconds = windRainMeter.elapsedTimeSinceLastReportInSeconds;
+      
+      if(windRainMeterElapsedTimeSinceLastReportInSeconds > 0) {
+      
+        accumulatedRainfallInMm = windRainMeter.accumulatedRainfallMM;
+      
+        meanWindSpeedInMS = windRainMeter.meanWindSpeedMetersPerSecond;
+      
+        meanWindDirectionInDD = windRainMeter.meanWindDirectionDecimalDegrees;
+      
+        maxWindSpeedInMS = windRainMeter.maxWindSpeedMetersPerSecond;
+      
+      }
+      
+    }
+  
+  }
+  
+  
+  // solar irradiance reading
+  
+  float solarIrradianceInWM2 = SOLAR_IRRADIANCE_UNDEFINED_VALUE;
+   
+  if(SUN_SENSOR_CONNECTED_AND_ACTIVATED) {
+ 
+    digitalWrite(SUN_SENSOR_POWER_PIN, HIGH);  
+    
+    unsigned long accuAdcReadings = 0;
+      
+    for(byte i=0 ; i < 10; i++) {
+      
+      accuAdcReadings += analogRead(SUN_SENSOR_ADC_PIN);;
+      delay(50);
+      
+    }
+    
+    solarIrradianceInWM2 = ((float) accuAdcReadings * ADC_REF_VOLTAGE)  * 0.05847656;     // 0.05847656 = 1 / (1024 * 10 * 0.00167) ---> 0.00167 V <-> 1 W/M2
+ 
+    digitalWrite(SUN_SENSOR_POWER_PIN, LOW);  
+    
+  }
   
 
   // device temperature reading
   
-  float deviceTemperature = DEVICE_TEMPERATURE_UNDEFINED_VALUE;
+  float deviceTemperatureInCD = DEVICE_TEMPERATURE_UNDEFINED_VALUE;       // Celsius degrees
   
-  float measuredDeviceTemperature = pressureSensor.readTemperature();
+  float measuredDeviceTemperatureInCD = pressureTemperatureSensor.readTemperature();
   
-  if(measuredDeviceTemperature > DEVICE_TEMPERATURE_UNDEFINED_VALUE) deviceTemperature = measuredDeviceTemperature;
+  if(measuredDeviceTemperatureInCD > DEVICE_TEMPERATURE_UNDEFINED_VALUE) deviceTemperatureInCD = measuredDeviceTemperatureInCD;
   
   
   // device battery voltage reading
   
-  float deviceBatteryVoltage = readDeviceBatteryVoltage();
+  float deviceBatteryVoltageInV = readDeviceBatteryVoltageInV();
   
   
   // report construction
 
-  char reportFormatIdentifier[] = "A";         // hex string
+  char reportFormatIdentifier[] = "1";         // hex string
 
   char sep[2] = ",";
   
@@ -1192,30 +1291,42 @@ boolean readSensorsAndStoreReport() {
            
   strcat(report, sep);
 
-  if(externalTemperature != EXTERNAL_TEMPERATURE_UNDEFINED_VALUE) {
+  if(T_RH_SENSOR_CONNECTED_AND_ACTIVATED
+      and (externalTemperatureInCD != EXTERNAL_TEMPERATURE_UNDEFINED_VALUE)) {
    
-    strcat(report, dtostrf(externalTemperature, 1, 1, numToCharsBuffer));
+    strcat(report, dtostrf(externalTemperatureInCD, 1, 1, numToCharsBuffer));
     
   }
 
   strcat(report, sep);
   
-  if(externalRelativeHumidity != EXTERNAL_RELATIVE_HUMIDITY_UNDEFINED_VALUE) {
+  if(T_RH_SENSOR_CONNECTED_AND_ACTIVATED 
+      and (externalRelativeHumidityInPC != EXTERNAL_RELATIVE_HUMIDITY_UNDEFINED_VALUE)) {
     
-    strcat(report, dtostrf(externalRelativeHumidity, 1, 0, numToCharsBuffer));
+    strcat(report, dtostrf(externalRelativeHumidityInPC, 1, 0, numToCharsBuffer));
     
   }
   
   strcat(report, sep);
   
-  if(pressure != PRESSURE_UNDEFINED_VALUE) {
+  if(pressureInHPa != PRESSURE_UNDEFINED_VALUE) {
     
-    strcat(report, dtostrf(pressure, 1, 1, numToCharsBuffer));
+    strcat(report, dtostrf(pressureInHPa, 1, 1, numToCharsBuffer));
     
   }
   
+  strcat(report, sep);
   
-  if((RAIN_GAUGE_SENSOR_CONNECTED_AND_ACTIVATED or ANEMOMETER_SENSOR_CONNECTED_AND_ACTIVATED) and (windRainMeterReportID != 255) and (windRainMeterElapsedTimeSinceLastReportInSeconds > 0)) {
+  if(SUN_SENSOR_CONNECTED_AND_ACTIVATED 
+      and (solarIrradianceInWM2 != SOLAR_IRRADIANCE_UNDEFINED_VALUE)) {
+    
+    strcat(report, dtostrf(solarIrradianceInWM2, 1, 0, numToCharsBuffer));
+    
+  }
+
+  
+  if((RAIN_SENSOR_CONNECTED_AND_ACTIVATED or WIND_SENSOR_CONNECTED_AND_ACTIVATED) 
+      and (windRainMeterReportID != WIND_RAIN_METER_REPORT_ID_UNDEFINED_VALUE)) {
     
     int elapsedTimeSinceLastReportInSeconds = sensorDataAcquisitionTimestamp - previousReportTimeStamp;
     
@@ -1229,32 +1340,39 @@ boolean readSensorsAndStoreReport() {
     
     strcat(report, sep);
     
-    if(RAIN_GAUGE_SENSOR_CONNECTED_AND_ACTIVATED) {
+    if(RAIN_SENSOR_CONNECTED_AND_ACTIVATED
+       and (accumulatedRainfallInMm != ACCUMULATED_RAINFALL_UNDEFINED_VALUE)) {
       
-      strcat(report, dtostrf(windRainMeter.accumulatedRainfallMM, 1, 1, numToCharsBuffer));
+      strcat(report, dtostrf(accumulatedRainfallInMm, 1, 2, numToCharsBuffer));
       
     }
       
-      
-    if(ANEMOMETER_SENSOR_CONNECTED_AND_ACTIVATED) {
-      
-      strcat(report, sep);
-            
-      strcat(report, dtostrf(windRainMeter.meanWindSpeedMetersPerSecond, 1, 1, numToCharsBuffer));
-      
-      strcat(report, sep);
-      
-      strcat(report, itoa(windRainMeter.meanWindDirectionDecimalDegrees, numToCharsBuffer, 10)); 
-      
-      strcat(report, sep);
-      
-      strcat(report, dtostrf(windRainMeter.maxWindSpeedMetersPerSecond, 1, 1, numToCharsBuffer));
+    strcat(report, sep);
+          
+    if(WIND_SENSOR_CONNECTED_AND_ACTIVATED 
+       and meanWindSpeedInMS != MEAN_WIND_SPEED_UNDEFINED_VALUE) {
+    
+      strcat(report, dtostrf(meanWindSpeedInMS, 1, 1, numToCharsBuffer));
       
     }
     
-    else {
+    strcat(report, sep);
+    
+
       
-     for(byte i = 0 ; i < 3 ; i++) strcat(report, sep);
+    if(WIND_SENSOR_CONNECTED_AND_ACTIVATED 
+       and meanWindDirectionInDD != MEAN_WIND_DIRECTION_UNDEFINED_VALUE) {
+         
+      strcat(report, itoa(meanWindDirectionInDD, numToCharsBuffer, 10)); 
+    
+    }
+    
+    strcat(report, sep);
+    
+    if(WIND_SENSOR_CONNECTED_AND_ACTIVATED 
+       and maxWindSpeedInMS != MAX_WIND_SPEED_UNDEFINED_VALUE) {
+         
+      strcat(report, dtostrf(maxWindSpeedInMS, 1, 1, numToCharsBuffer));
       
     }
     
@@ -1271,8 +1389,14 @@ boolean readSensorsAndStoreReport() {
     strcat(report, sep);
     
     unsigned long fixPositionTimestamp = getTimeStamp(gps.position.fix_Y_utc, gps.position.fix_M_utc, gps.position.fix_D_utc, gps.position.fix_h_utc, gps.position.fix_m_utc, gps.position.fix_s_utc);
+    
+    long differenceInSecondsBetweenDataAcquisitionAndLastGPSFix = (long) sensorDataAcquisitionTimestamp - (long) fixPositionTimestamp;
+    
+    if((differenceInSecondsBetweenDataAcquisitionAndLastGPSFix >= 0) and (differenceInSecondsBetweenDataAcquisitionAndLastGPSFix < 864000)) {    // 864000 seconds = 10 days
 
-    strcat(report, ultoa((sensorDataAcquisitionTimestamp - fixPositionTimestamp), numToCharsBuffer, 10));
+        strcat(report, ultoa((differenceInSecondsBetweenDataAcquisitionAndLastGPSFix), numToCharsBuffer, 10)); 
+    
+    }
       
     strcat(report, sep);
 
@@ -1297,17 +1421,17 @@ boolean readSensorsAndStoreReport() {
  
    strcat(report, sep);
   
-  if(deviceTemperature != DEVICE_TEMPERATURE_UNDEFINED_VALUE) {
+  if(deviceTemperatureInCD != DEVICE_TEMPERATURE_UNDEFINED_VALUE) {
     
-    strcat(report, dtostrf(deviceTemperature, 1, 0, numToCharsBuffer));
+    strcat(report, dtostrf(deviceTemperatureInCD, 1, 0, numToCharsBuffer));
     
   }
   
   strcat(report, sep);
   
-  if(deviceBatteryVoltage != BATTERY_VOLTAGE_UNDEFINED_VALUE) {
+  if(deviceBatteryVoltageInV != BATTERY_VOLTAGE_UNDEFINED_VALUE) {
     
-    strcat(report, dtostrf(deviceBatteryVoltage, 1, 2, numToCharsBuffer));
+    strcat(report, dtostrf(deviceBatteryVoltageInV, 1, 2, numToCharsBuffer));
     
   }
   
@@ -1317,15 +1441,19 @@ boolean readSensorsAndStoreReport() {
  
  
   strcat(report, sep);
+  
+  if(RAIN_SENSOR_CONNECTED_AND_ACTIVATED or WIND_SENSOR_CONNECTED_AND_ACTIVATED) {
     
-  strcat(report, itoa(windRainMeterReportID, numToCharsBuffer, 10));        
+    strcat(report, itoa(windRainMeterReportID, numToCharsBuffer, 10));    
+
+  }    
   
  
   // report storing
        
   softSerialDebug.println(report);
        
-  success = mStore.storeMessage(report);
+  success = mStore.storeMessageCheck(report);
   
   previousReportTimeStamp = sensorDataAcquisitionTimestamp;
   
@@ -1338,9 +1466,9 @@ boolean readSensorsAndStoreReport() {
 
 
 
-float readDeviceBatteryVoltage() {
+float readDeviceBatteryVoltageInV() {
 
-  float deviceBatteryVoltage = BATTERY_VOLTAGE_UNDEFINED_VALUE;
+  float deviceBatteryVoltageInV = BATTERY_VOLTAGE_UNDEFINED_VALUE;
   
   unsigned long accuAdcReadings = 0;
     
@@ -1348,9 +1476,9 @@ float readDeviceBatteryVoltage() {
     accuAdcReadings += analogRead(DEVICE_BATTERY_VOLTAGE_PIN);
   }
   
-  if(accuAdcReadings > 0) deviceBatteryVoltage = accuAdcReadings * ADC_REF_VOLTAGE * 156.0 / (10 * 1024 * 56.0);
+  if(accuAdcReadings > 0) deviceBatteryVoltageInV = ((float) accuAdcReadings * ADC_REF_VOLTAGE * 156) / ((float) 10 * 1024 * 56);      // 56, 156 : resistor voltage divider values
   
-  return deviceBatteryVoltage;
+  return deviceBatteryVoltageInV;
 
 }
 
@@ -1370,9 +1498,9 @@ boolean modemPowerOn_httpPostStoredReports_modemPowerOff(int maxNumOfReportsToBe
   
   // are there any stored reports to be sent ?
   
-  int numOfReportsStored = mStore.getMessagesCount();
+  int numOfStoredReports = mStore.getMessagesCount();
   
-  if(numOfReportsStored > 0) {
+  if(numOfStoredReports > 0) {
     
     boolean connectedToNet = modemPowerOn_connectToNet();
   
@@ -1396,9 +1524,9 @@ boolean httpPostStoredReports(int maxNumOfReportsToBeSent) {
   
   // are there any stored reports to be sent ?
 
-  int numOfReportsStored = mStore.getMessagesCount();
+  int numOfStoredReports = mStore.getMessagesCount();
     
-  if(numOfReportsStored == 0) success = true;
+  if(numOfStoredReports == 0) success = true;
   
   else {
     
@@ -1411,7 +1539,7 @@ boolean httpPostStoredReports(int maxNumOfReportsToBeSent) {
       
       // which is the real number of reports to be sent, and which is the corresponding total file content length ?
       
-      int numOfReportsToBeSent = min(numOfReportsStored, maxNumOfReportsToBeSent);
+      int numOfReportsToBeSent = min(numOfStoredReports, maxNumOfReportsToBeSent);
       
       int reportsCounter = 0;
  
@@ -1438,7 +1566,7 @@ boolean httpPostStoredReports(int maxNumOfReportsToBeSent) {
 
       char report[REPORT_BUFFER_LENGTH];
 
-      char incomingCharsBuffer[60];
+      char incomingCharsBuffer[61];
       
       
       // TCP connection and request transmission

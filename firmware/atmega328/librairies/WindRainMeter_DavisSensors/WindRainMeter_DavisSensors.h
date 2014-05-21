@@ -1,7 +1,7 @@
 /*
  * File : WindRainMeter_DavisSensors.h
  *
- * Version : 0.8.0
+ * Version : 1.2
  *
  * Purpose : I2C wind rain meter (Davis sensors) interface library for Arduino
  *
@@ -11,7 +11,11 @@
  *
  * License: GNU GPL v2 (see License.txt)
  *
- * Creation date : 2014/01/31
+ * Creation date : 2014/05/21
+ *
+ * History :
+ *
+ * 1.2 : accumulatedRainfall encoding rule change in method getReport() : / 100.0 instead of / 10.0
  * 
  */
 

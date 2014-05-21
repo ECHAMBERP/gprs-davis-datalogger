@@ -16,13 +16,13 @@
  * The master must request 15 bytes to the slave, which returns as a response a "report" containing the following bytes :   
  *
  * - report id : 1 byte
- * - elapsed time since last report (encoded), in seconds : 2 bytes
- * - accumulated rainfall since last report (encoded), in mm : 2 bytes
- * - current (last tick) wind speed, in meters per second : 2 bytes
- * - current (last tick) wind direction, in decimal degrees : 2 bytes
- * - mean (since last report) wind speed, in meters per second : 2 bytes
- * - mean (since last report) wind direction, in decimal degrees : 2 bytes
- * - maximum (since last report) wind speed, in meters per second : 2 bytes
+ * - elapsed time since last report in seconds : 2 bytes / encoded
+ * - accumulated rainfall since last report in mm : 2 bytes / encoded
+ * - current (last tick) wind speed in meters per second : 2 bytes / encoded
+ * - current (last tick) wind direction in decimal degrees : 2 bytes / encoded
+ * - mean (since last report) wind speed in meters per second : 2 bytes / encoded
+ * - mean (since last report) wind direction in decimal degrees : 2 bytes / encoded
+ * - maximum (since last report) wind speed in meters per second : 2 bytes / encoded
  *
  *
  * Author : Previmeteo (www.previmeteo.com)
@@ -31,10 +31,11 @@
  *
  * License: GNU GPL v2 (see License.txt)
  *
- * Version : 0.8.0
+ * Version : 1.2.0
  *
- * Creation date : 2013/12/12
+ * Creation date : 2014/05/21
  * 
+ * - 1.2.0 : accumulatedRainfall encoding rule change in function twiRequestEvent() : x100 instead of x10
  */
  
 
@@ -52,9 +53,9 @@
 
 // calibration data
 
-#define RAIN_SENSOR_BUCKET_TO_MM 0.2
+#define RAIN_SENSOR_BUCKET_TO_MM 0.2                                         // DAVIS RAIN COLLECTOR II - metric version version
 
-#define ANEMOMETER_SENSOR_PULSE_PER_SECOND_TO_METERS_PER_SECOND 0.998         
+#define ANEMOMETER_SENSOR_PULSE_PER_SECOND_TO_METERS_PER_SECOND 0.998        // DAVIS 6410 anemometer (new version with hall effect sensor) 
 
 
 
@@ -64,7 +65,7 @@
   
 #define ANEMOMETER_PIN P2_0
 
-#define VANE_POWER_PIN P1_5 
+#define ANEMOMETER_VANE_POWER_PIN P1_5 
   
 #define VANE_ADC_PIN A4         // <-> P1_4
 
@@ -130,8 +131,8 @@ void setup() {
   
   pinMode(RED_LED, OUTPUT); 
   
-  pinMode(VANE_POWER_PIN, OUTPUT); 
-  digitalWrite(VANE_POWER_PIN, HIGH);       
+  pinMode(ANEMOMETER_VANE_POWER_PIN, OUTPUT); 
+  digitalWrite(ANEMOMETER_VANE_POWER_PIN, HIGH);       
   
   Wire.begin(DEVICE_ADDRESS);          
   
@@ -186,7 +187,7 @@ void onWindSensorPulse() {
   
   if(delayBetweenPulsesInMicros > 5000) {     
     
-    lastInstantaneousWindSpeedMetersPerSecond = 1000000.0 * ANEMOMETER_SENSOR_PULSE_PER_SECOND_TO_METERS_PER_SECOND / delayBetweenPulsesInMicros;
+    lastInstantaneousWindSpeedMetersPerSecond = 1000000 * (float) ANEMOMETER_SENSOR_PULSE_PER_SECOND_TO_METERS_PER_SECOND / delayBetweenPulsesInMicros;
   
     if(lastInstantaneousWindSpeedMetersPerSecond > maxWindSpeedMetersPerSecondSinceLastReport) maxWindSpeedMetersPerSecondSinceLastReport = lastInstantaneousWindSpeedMetersPerSecond;
     
@@ -212,14 +213,10 @@ void onTick() {
   // wind direction computation 
   
   long accuVaneADC = 0;
-
-  //digitalWrite(VANE_POWER_PIN, HIGH); 
   
   for(byte i = 0 ; i < 3 ; i++) {
     accuVaneADC += analogRead(VANE_ADC_PIN);
   }
-  
-  //digitalWrite(VANE_POWER_PIN, LOW); 
   
   lastTickWindDirectionDecimalDegrees = (accuVaneADC * 360) / 3072.0;    // 1024 * 3
     
@@ -271,7 +268,7 @@ float getLastTickWindDirectionDecimalDegrees() {
 
 float getMeanWindSpeedMetersPerSecondSinceLastReport() {
   
-  float meanWindSpeedMetersPerSecondSinceLastReport = accumulatedAnemometerSensorPulsesSinceLastReport * ANEMOMETER_SENSOR_PULSE_PER_SECOND_TO_METERS_PER_SECOND / getElapsedTimeSinceLastReportInSeconds();
+  float meanWindSpeedMetersPerSecondSinceLastReport = accumulatedAnemometerSensorPulsesSinceLastReport * (float) ANEMOMETER_SENSOR_PULSE_PER_SECOND_TO_METERS_PER_SECOND / getElapsedTimeSinceLastReportInSeconds();
   
   return meanWindSpeedMetersPerSecondSinceLastReport;
   
@@ -367,7 +364,7 @@ void twiRequestEvent() {
   respArray[1] = U.b[0];
   respArray[2] = U.b[1];
   
-  U.ival = (int) (getAccumulatedRainfall() * 10);
+  U.ival = (int) (getAccumulatedRainfall() * 100);
     
   respArray[3] = U.b[0];
   respArray[4] = U.b[1];

@@ -1,7 +1,7 @@
 /*
  * File : MStore_24LC1025.cpp
  *
- * Version : 0.8.0
+ * Version : 1.2
  *
  * Purpose : 24LC1025 EEPROM "store" interface library for Arduino
  *
@@ -11,7 +11,12 @@
  *
  * License: GNU GPL v2 (see License.txt)
  *
- * Creation date : 2014/01/29
+ * Creation date : 2014/05/21
+ *
+ * History :
+ *
+ * - 1.2 : prototype changes on the write and store functions
+ *         and addition of new functions : storeMessageCheck() and clearPageCheck()
  *
  */
  
@@ -118,12 +123,8 @@ byte MStore_24LC1025::getMessageLength(int pageIndex) {
 
 
   
-boolean MStore_24LC1025::writeMessage(int pageIndex, char* message) {
+void MStore_24LC1025::writeMessage(int pageIndex, char* message) {
 
-
-  boolean messageWritten = false;
-  
-  
   byte messageLength = 0;
   while(message[messageLength] != '\0') messageLength++;
     
@@ -195,21 +196,14 @@ boolean MStore_24LC1025::writeMessage(int pageIndex, char* message) {
       }
     
     }
-    
-    
-    messageWritten = true;
   
   }
-  
-  return messageWritten;
   
 }
     
     
     
-boolean MStore_24LC1025::storeMessage(char* message) {
-
-  boolean success = false;
+int MStore_24LC1025::storeMessage(char* message) {
   
   boolean pageIndexFound = false;
   
@@ -222,10 +216,39 @@ boolean MStore_24LC1025::storeMessage(char* message) {
   
   }
   
-  if(pageIndexFound) success = writeMessage(pageIndex, message);
+  if(pageIndexFound) {
+  
+      writeMessage(pageIndex, message);
+      
+      return pageIndex;
+      
+  }
+  
+  else return -1;
+    
+}
+
+
+
+boolean MStore_24LC1025::storeMessageCheck(char* message) {
+
+  boolean success = false;
+  
+  byte messageLength = 0;
+  while(message[messageLength] != '\0') messageLength++;
+  
+  int pageIndex = storeMessage(message);
+  
+  if(pageIndex >= 0) {
+  
+    int messageLengthOfStoredMessage = getMessageLength(pageIndex);
+    
+    if(messageLength == messageLengthOfStoredMessage) success = true;
+  
+  }
   
   return success;
-  
+
 }
 
 
@@ -321,6 +344,20 @@ void MStore_24LC1025::clearPage(int pageIndex) {
   
   }
 
+}
+
+
+
+boolean MStore_24LC1025::clearPageCheck(int pageIndex) {
+
+  boolean success = false;
+
+  clearPage(pageIndex);
+    
+  if(getMessageLength(pageIndex) == 0) success = true;
+    
+  return success;
+  
 }
 
 

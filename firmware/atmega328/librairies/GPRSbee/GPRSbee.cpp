@@ -1,7 +1,7 @@
 /*
  * File : GPRSbee.cpp
  *
- * Version : 0.8.1
+ * Version : 1.2
  *
  * Purpose : GPRSBEE modem (http://www.gprsbee.com) interface library for Arduino
  *
@@ -11,11 +11,12 @@
  *
  * License: GNU GPL v2 (see License.txt)
  *
- * Creation date : 2014/02/20
+ * Creation date : 2014/05/21
  *
  * History :
  * 
  * - 0.8.1 : bug fix in the requestAT() method
+ * - 1.2 : addition of a softPowerOff() method
  * 
  */
  
@@ -30,7 +31,10 @@
 
 
 GPRSbee::GPRSbee(byte onOffPin, byte statusPin, byte rxPin, byte txPin):serialConnection(rxPin, txPin) { 
-    
+
+  // rxPin : the pseudo-RX pin of the Arduino linked to the TX pin of the GPRSBee modem (labelled as DOUT)
+  // txPin : the pseudo-TX pin of the Arduino linked to the RX pin of the GPRSBee modem (labelled as DIN) 
+  
   _onOffPin = onOffPin;
   _statusPin = statusPin;
   _debugSerialConnectionEnabled = false;
@@ -41,6 +45,9 @@ GPRSbee::GPRSbee(byte onOffPin, byte statusPin, byte rxPin, byte txPin):serialCo
 
 GPRSbee::GPRSbee(byte onOffPin, byte statusPin, byte rxPin, byte txPin, SoftwareSerial *debugSerialConnection):serialConnection(rxPin, txPin) { 
     
+  // rxPin : the pseudo-RX pin of the Arduino linked to the TX pin of the GPRSBee modem (labelled as DOUT)
+  // txPin : the pseudo-TX pin of the Arduino linked to the RX pin of the GPRSBee modem (labelled as DIN) 
+  
   _onOffPin = onOffPin;
   _statusPin = statusPin;
   _debugSerialConnectionEnabled = true;
@@ -63,6 +70,20 @@ void GPRSbee::init(long baudRate) {
   
   delay(1000);
 
+}
+
+
+
+boolean GPRSbee::isOn() {
+
+  boolean on = false;
+  
+  byte status = digitalRead(_statusPin);
+  
+  if(status) on = true;
+  
+  return on;
+  
 }
 
 
@@ -105,7 +126,19 @@ void GPRSbee::powerOn() {
 
 void GPRSbee::powerOff() {
   
-  if(isOn()) togglePowerState();
+  if(isOn()) {
+  
+    togglePowerState();
+  
+  }
+  
+  delay(500);
+  
+  if(isOn() and isCommunicationActivated()) {   // has the togglePowerState() action succeeded ? if not, we try a software power down in a last effort
+  
+    softPowerOff();
+    
+  }
   
 }
 
@@ -127,15 +160,15 @@ void GPRSbee::powerOff_On() {
 
 
 
-boolean GPRSbee::isOn() {
+void GPRSbee::softPowerOff() {
 
-  boolean on = false;
+  if(isCommunicationActivated()) {
   
-  byte status = digitalRead(_statusPin);
+      requestAT(F("AT+CPOWD=0"), 1, AT_DEFAULT_RESP_TIMOUT_IN_MS);
+            
+      delay(3000);
   
-  if(status) on = true;
-  
-  return on;
+  }
   
 }
 

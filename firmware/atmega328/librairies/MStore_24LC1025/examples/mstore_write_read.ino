@@ -6,7 +6,7 @@
  *
  * This sketch stores 115 messages in the EEPROM and shows how to retrieve them later.
  *
- * Please note that you will have to "format" the EEPROM at the beginning of the sketch if you are 
+ * Please note that you will have to ""format" the EEPROM at the beginning of the sketch if you are 
  * using a new chip or a previously used one which may contain residual data (uncomment the line 
  * mStore.smashAllPages() below if required)
  *

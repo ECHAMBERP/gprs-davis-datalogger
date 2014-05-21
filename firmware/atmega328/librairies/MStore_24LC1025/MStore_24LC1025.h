@@ -1,7 +1,7 @@
 /*
  * File : MStore_24LC1025.h
  *
- * Version : 0.8.0
+ * Version : 1.2
  *
  * Purpose : 24LC1025 EEPROM "store" interface library for Arduino
  *
@@ -11,7 +11,12 @@
  *
  * License: GNU GPL v2 (see License.txt)
  *
- * Creation date : 2014/01/29
+ * Creation date : 2014/05/21
+ *
+ * History :
+ *
+ * - 1.2 : prototype changes on the write and store functions
+ *         and addition of new functions : storeMessageCheck() and clearPageCheck()
  * 
  */
 
@@ -46,9 +51,11 @@ class MStore_24LC1025 {
     
     void init();
     
-    boolean writeMessage(int pageIndex, char* message);
+    void writeMessage(int pageIndex, char* message);
 
-    boolean storeMessage(char* message);
+    int storeMessage(char* message);
+    
+    boolean storeMessageCheck(char* message);
     
     int getMessagesCount();
     
@@ -59,6 +66,8 @@ class MStore_24LC1025 {
     void retrieveMessage(int pageIndex, char* message);
 
     void clearPage(int pageIndex);
+    
+    boolean clearPageCheck(int pageIndex);
     
     void clearAllPages();
     

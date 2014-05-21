@@ -16,7 +16,7 @@ The Arduino (I2C master) can request "reports" to the MSP430G2553 slave and then
 - the mean wind direction since the last report (float value, in decimal degrees)
 - the maximum wind speed since the last report (float value, in m/s)
  
-This library currently supports the 0.8.X version of the MSP430G2553 wind and rain meter firmware.   
+This library currently supports the 1.2 version of the MSP430G2553 wind and rain meter firmware.   
 
  
 Dependencies : Wire library.

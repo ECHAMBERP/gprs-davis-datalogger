@@ -12,13 +12,14 @@
 
 - 1 x temperature & humidity sensor - based on the SHT1x sensor from Sensirion
 
+- 1 x 6450 solar radiation sensor
 
 
 
 # Modules : 
 
 
-- 1 x BMP085 Barometric Pressure Sensor Breakout board (Sparkfun)
+- 1 x BMP085 or BMP180 Barometric Pressure Sensor Breakout board (Sparkfun)
 
 - 1 x Ultimate GPS Breakout board, version 3 (Adafruit)
 
@@ -33,6 +34,8 @@
 - 1 x MCP73861 Li-Ion/Li-Po charge management controller (Microchip)
 
 - 1 x TPS73233 3.3V Low Dropout Regulator (Texas Instruments)
+
+- 1 x TC1014 3V Low Dropout Regulator (Microchip)
 
 - 1 x ATMEGA328 DIP microcontroller (Atmel)
 
@@ -84,7 +87,7 @@
 # ATMEGA328 programming
 
 
-The ATMEGA328 will have to be programmed, at first, with the Arduino Pro Mini 3.3V / 8MHz bootloader. 
+The ATMEGA328 will have to be programmed, at first, with the Arduino Pro Mini 3.3V / 8MHz optiboot bootloader. 
 
 You will need, for this, either a dedicated AVR ISP programmer or an "home made" one based on an ARDUINO module
 

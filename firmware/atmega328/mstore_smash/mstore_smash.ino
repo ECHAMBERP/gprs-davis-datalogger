@@ -19,9 +19,9 @@
  *
  * License: GNU GPL v2 (see License.txt)
  *
- * Version : 0.8.0
+ * Version : 1.2
  *
- * Creation date : 2014/01/30
+ * Creation date : 2014/05/21
  * 
  */
  

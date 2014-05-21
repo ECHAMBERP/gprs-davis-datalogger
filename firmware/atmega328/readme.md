@@ -10,10 +10,29 @@ There are several steps required to setup the IDE, format the EEPROMs used on th
 
 
 
-A/ IDE setup and librairies installation
+A/ IDE setup and bootloaders / librairies installation
 
 
 - download and install the Arduino 1.0.x IDE from http://arduino.cc/en/main/software (tested version : 1.0.4)
+
+
+- create (if not already done) two sub-directories in your Sketchbook directory, respectively named 'hardware' and
+  'librairies'
+  
+  
+- copy the 'bootloaders/hardware/the_bootloaders' directory in the previously created 'hardware' directory 
+
+
+- copy the Ultimate_GPS library in the previously created 'librairies' directory (version : 1.2) 
+
+
+- copy the MStore_24LC1025 library in the librairies directory (version : 1.2) 
+
+
+- copy the GPRSbee library in the librairies directory (version : 1.2) 
+
+
+- copy the WindRainMeter_DavisSensors library in the librairies directory (version : 1.2) 
 
 
 - download the LowPower library from https://github.com/rocketscream/Low-Power and copy it to libraries/LowPower 
@@ -28,44 +47,63 @@ A/ IDE setup and librairies installation
   libraries/Adafruit_BMP085 (tested revision : 4802c1b8d3)
 
 
-- download the dht library from http://playground.arduino.cc/Main/DHTLib and copy it to libraries/dht 
-  (tested version : 0.1.05)
+- download the SHT1x library from https://github.com/practicalarduino/SHT1x and copy it to libraries/SHT1x 
+  (tested revision : be7042c3e3)
 
 
-- copy the Ultimate_GPS library in the librairies directory (tested version : 0.8) 
+You should end up with with the following structure inside your 'Sketchbook' directory :
 
 
-- copy the MStore_24LC1025 library in the librairies directory (tested version : 0.8) 
+    + Sketchbook
+    
+      + hardware
+    
+        + the_bootloaders
+    
+          + bootloaders
+    
+            + optiboot
+            + standard
+            
+      + librairies
+    
+        + Adafruit_BMP085
+        + GPRSbee
+        + LowPower
+        + MStore_24LC1025
+        + Rtc_Pcf8563
+        + SHT1x
+        + Ultimate_GPS
+        + WindRainMeter_DavisSensors
+    
 
 
-- copy the GPRSbee library in the librairies directory (tested version : 0.8) 
+
+B/ optiboot bootloader upload on the ATMEGA328
 
 
-- copy the WindRainMeter_DavisSensors library in the librairies directory (tested version : 0.8) 
+The "Arduino Pro or Pro Mini (3.3V, 8 MHz) w/ ATmega328 -> optiboot" bootloader needs to be uploaded 
+on the ATMEGA328 in order to allow it to be (re)programmed later with the Arduino IDE and an FTDI cable. 
 
+The optiboot bootloader is required here because the GPRS datalogger firmware (gprs_datalogger.ino),
+which we will upload later on the Atmega, is too big in size to be used with the standard "Arduino Pro or Pro Mini
+(3.3V, 8 MHz) w/ ATmega328" bootloader, while there still remains some space on the chip when using the optiboot.
+   
+The upload process of the optiboot bootloader is very easy, provided that you copied the required files
+in your 'Sketchbook' directory during the previous stage and own an AVR ISP programmer. 
 
-
-
-B/ Arduino's bootloader upload on the ATMEGA328
-
-
-The "Arduino Mini Pro 3.3 V / 8 MHz" bootloader needs to be uploaded on the ATMEGA328 in order
-to allow it to be (re)programmed later with the Arduino IDE and an FTDI cable. 
-
-
-You will need for this an AVR ISP programmer. If you don't own one, you can easily make it using 
-an other Arduino module as in this tutorial :
+If you don't have one, you can easily make it using an Arduino module as in this tutorial :
 
 http://letsmakerobots.com/node/35649 
 
 
-With this programmer, you will be able to upload the Arduino bootloader on the board's ATMEGA328.
+With this programmer, you will be able to upload the optiboot bootloader on the board's ATMEGA328.
 
 For this, connect your programmer to the ISP connector on the board, launch your Arduino IDE and :
 
 - go int the Tools > Programmer menu and select the type of programmer (for example : "Arduino as ISP") 
 
-- go int the Tools > Board menu and select "Arduino Mini Pro 3.3 V / 8 MHz"
+- go int the Tools > Board menu and select "Arduino Pro or Pro Mini (3.3V, 8 MHz) w/ ATmega328 -> optiboot"
 
 - go in the Tools menu and select "Burn bootloader"  
 
@@ -107,6 +145,8 @@ For this :
 
 - connect your FTDI cable to the board
 
+- go int the Tools > Board menu and select "Arduino Pro or Pro Mini (3.3V, 8 MHz) w/ ATmega328 -> optiboot" 
+
 - open the mstore_smash.ino sketch in the Arduino IDE
 
 - upload it on the board
@@ -131,6 +171,8 @@ For this :
 
 - connect your FTDI cable to the board
 
+- go int the Tools > Board menu and select "Arduino Pro or Pro Mini (3.3V, 8 MHz) w/ ATmega328 -> optiboot" 
+
 - open the station_id_rec_in_eeprom.ino sketch in the Arduino IDE
 
 - edit the #define STATION_ID "MY_IDENT" directive and set your station ID
@@ -151,6 +193,8 @@ E/ Data logger firmware upload
 - put the GPS's power switch in the OFF position
 
 - connect your FTDI cable to the board
+
+- go int the Tools > Board menu and select "Arduino Pro or Pro Mini (3.3V, 8 MHz) w/ ATmega328 -> optiboot" 
 
 - open the gprs_datalogger.ino sketch in the Arduino IDE
 
